@@ -4,11 +4,12 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+import streamlit as st
 from PIL import Image
 from pydub import AudioSegment
 
-from indexer import build_index_from_items  # Changed from add_items
-from rag_system.audio_processor import transcribe_audio
+from indexer import add_items, build_index_from_items, load_meta
+from rag_system.audio_processor import create_audio_chunks
 from rag_system.image_processor import get_image_caption
 from rag_system.text_processor import extract_text_chunks
 
@@ -111,51 +112,46 @@ def _create_image_item(path: str):
         return None
 
 def _create_audio_items(path: str):
-    """Process audio file"""
+    """Process audio file into optimal chunks based on duration"""
     try:
-        transcription = transcribe_audio(path)
-        if not transcription:
-            logger.warning(f"No transcription obtained for {path}")
-            return []
+        abs_path = str(Path(path).resolve())
         
-        # Handle different transcription formats
-        if isinstance(transcription, dict) and 'segments' in transcription:
-            # Structured transcription with timestamps
-            items = []
-            for segment in transcription['segments']:
-                items.append({
-                    "uuid": str(uuid4()),
-                    "type": "audio",
-                    "source": os.path.basename(path),
-                    "start_sec": segment.get('start', 0),
-                    "end_sec": segment.get('end', 0),
-                    "content": segment.get('text', ''),
-                    "orig_path": path
-                })
-            return items
-        else:
-            # Plain text transcription - split into chunks
-            text = str(transcription)
-            words = text.split()
-            chunks = []
-            chunk_size = 100  # words per chunk
-            
-            for i in range(0, len(words), chunk_size):
-                chunk_text = ' '.join(words[i:i + chunk_size])
-                chunks.append({
-                    "uuid": str(uuid4()),
-                    "type": "audio",
-                    "source": os.path.basename(path),
-                    "start_sec": i * 5,  # Estimate timing
-                    "end_sec": (i + chunk_size) * 5,
-                    "content": chunk_text,
-                    "orig_path": path
-                })
-            return chunks
-            
+        chunks = create_audio_chunks(abs_path)
+        
+        items = []
+        for chunk in chunks:
+            items.append({
+                "uuid": str(uuid4()),
+                "type": "audio",
+                "source": os.path.basename(path),
+                "start_sec": chunk['start_sec'],
+                "end_sec": chunk['end_sec'],
+                "duration": chunk['duration'],
+                "content": chunk['content'],
+                "orig_path": abs_path,
+                "chunk_index": chunk['chunk_index'],
+                "metadata": {
+                    "chunk_duration": chunk['duration'],
+                    "total_chunks": chunk['total_chunks']
+                }
+            })
+        
+        logger.info(f"Created {len(items)} audio chunks for {path}")
+        return items
+        
     except Exception as e:
         logger.error(f"Audio processing failed for {path}: {e}")
-        return []
+        # Fallback: create a single chunk
+        abs_path = str(Path(path).resolve())
+        return [{
+            "uuid": str(uuid4()),
+            "type": "audio",
+            "source": os.path.basename(path),
+            "start_sec": 0,
+            "end_sec": 30,  # Default 30-second chunk
+            "content": f"Audio file: {os.path.basename(path)}",
+            "orig_path": abs_path
+        }]
 
 def ingest_paths(paths: list) -> list:
     """Main ingestion function"""
@@ -192,9 +188,9 @@ def ingest_paths(paths: list) -> list:
             logger.error(f"Failed to process {path}: {e}")
             continue
     
-    # Replace the existing index with the new items
+    # Add to index
     if created_items:
-        result = build_index_from_items(created_items)  # This replaces the index
+        result = add_items(created_items)
         if result[0] is not None:
             logger.info(f"Successfully indexed {len(created_items)} new items")
         else:
@@ -202,70 +198,26 @@ def ingest_paths(paths: list) -> list:
     
     return created_items
 
-def render_citations(citations: list):
-    """Render citations in Streamlit"""
-    import streamlit as st
-    
-    if not citations:
-        st.info("No citations available")
-        return
-    
-    for i, citation in enumerate(citations, 1):
-        if isinstance(citation, str):
-            # Legacy string format
-            st.markdown(f"**[{i}]** {citation}")
-            continue
+@st.cache_data(ttl=3600)
+def extract_audio_segment(audio_path, start_sec, end_sec, max_duration=30):
+    """
+    Extract specific audio segment with proper caching
+    """
+    try:
+        if not os.path.exists(audio_path):
+            return None
             
-        # Structured citation format
-        citation_type = citation.get('type', 'unknown')
-        source = citation.get('source', 'Unknown')
+        audio = AudioSegment.from_file(audio_path)
+        start_ms = int(start_sec * 1000)
+        # Ensure we don't exceed 30 seconds
+        actual_end_sec = min(end_sec, start_sec + max_duration)
+        end_ms = int(actual_end_sec * 1000)
         
-        with st.expander(f"[{i}] {citation_type.title()}: {source}"):
-            col1, col2 = st.columns([1, 3])
-            
-            with col1:
-                st.write("**Type:**", citation_type)
-                st.write("**Source:**", source)
-                
-                if citation.get('page'):
-                    st.write("**Page:**", citation['page'])
-                if citation.get('start_sec'):
-                    st.write("**Timestamp:**", f"{citation['start_sec']}s")
-                if citation.get('caption'):
-                    st.write("**Caption:**", citation['caption'])
-                if citation.get('pdf_source'):
-                    st.write("**PDF Source:**", citation['pdf_source'])
-            
-            with col2:
-                content_preview = citation.get('content_preview', citation.get('content', ''))
-                st.write("**Content:**", content_preview)
-                
-                # Show image thumbnail
-                if citation_type == 'image' and citation.get('orig_path'):
-                    image_path = citation['orig_path']
-                    if os.path.exists(image_path):
-                        st.image(image_path, width=200)
-                    elif citation.get('thumbnail') and os.path.exists(citation['thumbnail']):
-                        st.image(citation['thumbnail'], width=200)
-                
-                # Show audio player
-                elif citation_type == 'audio' and citation.get('orig_path'):
-                    audio_path = citation['orig_path']
-                    if os.path.exists(audio_path):
-                        try:
-                            audio = AudioSegment.from_file(audio_path)
-                            start_ms = int(citation.get('start_sec', 0) * 1000)
-                            end_ms = int(citation.get('end_sec', 0) * 1000) if citation.get('end_sec') else None
-                            
-                            # Limit snippet to 30 seconds max
-                            if end_ms and (end_ms - start_ms) > 30000:
-                                end_ms = start_ms + 30000
-                            
-                            snippet = audio[start_ms:end_ms] if end_ms else audio[start_ms:start_ms + 30000]
-                            buf = io.BytesIO()
-                            snippet.export(buf, format="mp3")
-                            buf.seek(0)
-                            
-                            st.audio(buf.read(), format="audio/mp3")
-                        except Exception as e:
-                            st.error(f"Could not play audio: {e}") 
+        segment = audio[start_ms:end_ms]
+        buf = io.BytesIO()
+        segment.export(buf, format="mp3")
+        buf.seek(0)
+        return buf.read()
+    except Exception as e:
+        logger.error(f"Audio extraction failed: {e}")
+        return None
