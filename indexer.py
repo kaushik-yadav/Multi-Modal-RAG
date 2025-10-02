@@ -8,10 +8,21 @@ from uuid import uuid4
 import faiss
 import numpy as np
 
-from constants import FAISS_INDEX_PATH, FAISS_META_PATH, ID_MAP_PATH
 from embedding import embed_texts
 
 logger = logging.getLogger(__name__)
+
+def get_faiss_index_path():
+    """Get FAISS index path from environment or use default"""
+    return os.getenv("FAISS_INDEX_PATH", "faiss_index.index")
+
+def get_faiss_meta_path():
+    """Get FAISS metadata path from environment or use default"""
+    return os.getenv("FAISS_META_PATH", "faiss_metadata.json")
+
+def get_id_map_path():
+    """Get ID map path from environment or use default"""
+    return os.getenv("ID_MAP_PATH", "id_map.json")
 
 def _ensure_dir(path):
     """Ensure directory exists for file path"""
@@ -20,7 +31,8 @@ def _ensure_dir(path):
 def save_meta(items):
     """Save metadata with error handling"""
     try:
-        _ensure_dir(FAISS_META_PATH)
+        meta_path = get_faiss_meta_path()
+        _ensure_dir(meta_path)
         # Convert non-serializable objects to strings
         serializable_items = []
         for item in items:
@@ -35,52 +47,61 @@ def save_meta(items):
                     serializable_item[key] = str(value)
             serializable_items.append(serializable_item)
         
-        with open(FAISS_META_PATH, "w", encoding="utf-8") as f:
+        with open(meta_path, "w", encoding="utf-8") as f:
             json.dump({"items": serializable_items}, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved metadata for {len(items)} items")
+        logger.info(f"Saved metadata for {len(items)} items to {meta_path}")
     except Exception as e:
         logger.error(f"Failed to save metadata: {e}")
         raise
 
 def load_meta():
     """Load metadata with error handling"""
-    if not os.path.exists(FAISS_META_PATH):
+    meta_path = get_faiss_meta_path()
+    if not os.path.exists(meta_path):
+        logger.info(f"Metadata file not found at {meta_path}")
         return []
     try:
-        with open(FAISS_META_PATH, "r", encoding="utf-8") as f:
+        with open(meta_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        logger.info(f"Loaded metadata from {meta_path} with {len(data.get('items', []))} items")
         return data.get("items", [])
     except Exception as e:
-        logger.error(f"Failed to load metadata: {e}")
+        logger.error(f"Failed to load metadata from {meta_path}: {e}")
         return []
 
 def save_id_map(id_map):
     """Save mapping from index positions to UUID"""
     try:
-        _ensure_dir(ID_MAP_PATH)
-        with open(ID_MAP_PATH, "w", encoding="utf-8") as f:
+        id_map_path = get_id_map_path()
+        _ensure_dir(id_map_path)
+        with open(id_map_path, "w", encoding="utf-8") as f:
             json.dump(id_map, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved ID map to {id_map_path}")
     except Exception as e:
         logger.error(f"Failed to save ID map: {e}")
 
 def load_id_map():
     """Load ID map"""
-    if not os.path.exists(ID_MAP_PATH):
+    id_map_path = get_id_map_path()
+    if not os.path.exists(id_map_path):
+        logger.info(f"ID map not found at {id_map_path}")
         return {}
     try:
-        with open(ID_MAP_PATH, "r", encoding="utf-8") as f:
+        with open(id_map_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Failed to load ID map: {e}")
+        logger.error(f"Failed to load ID map from {id_map_path}: {e}")
         return {}
 
 def load_index_and_meta():
     """Load both FAISS index and metadata"""
     try:
-        if not os.path.exists(FAISS_INDEX_PATH):
+        index_path = get_faiss_index_path()
+        if not os.path.exists(index_path):
+            logger.info(f"Index file not found at {index_path}")
             return None, []
         
-        index = faiss.read_index(FAISS_INDEX_PATH)
+        index = faiss.read_index(index_path)
         items = load_meta()
         
         # Validate that index size matches metadata
@@ -91,7 +112,7 @@ def load_index_and_meta():
             if min_size == 0:
                 return None, []
             
-        logger.info(f"Loaded index with {index.ntotal} items")
+        logger.info(f"Loaded index from {index_path} with {index.ntotal} items")
         return index, items
         
     except Exception as e:
@@ -130,15 +151,16 @@ def build_index_from_items(items):
         index.add(embeddings)
         
         # Save index and metadata
-        _ensure_dir(FAISS_INDEX_PATH)
-        faiss.write_index(index, FAISS_INDEX_PATH)
+        index_path = get_faiss_index_path()
+        _ensure_dir(index_path)
+        faiss.write_index(index, index_path)
         save_meta(items)
         
         # Create and save ID map
         id_map = {str(i): items[i]["uuid"] for i in range(len(items))}
         save_id_map(id_map)
         
-        logger.info(f"Built index with {len(items)} items, dimension {dimension}")
+        logger.info(f"Built index at {index_path} with {len(items)} items, dimension {dimension}")
         return index, items
         
     except Exception as e:
@@ -187,7 +209,7 @@ def get_index_stats():
 def clear_index():
     """Delete all index and metadata files"""
     deleted_files = []
-    files_to_delete = [FAISS_INDEX_PATH, FAISS_META_PATH, ID_MAP_PATH]
+    files_to_delete = [get_faiss_index_path(), get_faiss_meta_path(), get_id_map_path()]
     
     for file_path in files_to_delete:
         if os.path.exists(file_path):
@@ -273,4 +295,3 @@ def rebuild_index():
     items = load_meta()
     if items:
         return build_index_from_items(items)
-    return None, []
