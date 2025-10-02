@@ -77,6 +77,7 @@ INSTRUCTIONS:
 6. Provide specific references to source numbers [1], [2], etc.
 7. Highlight connections between different modalities when applicable
 
+**STRICTLY** : ALWAYS MENTIONS THE CITATIONS THAT YOU FOUND THE ANSWER FROM (PROVIDE SOURCE NUMBERS TOO)
 ANSWER:"""
 
     payload = {
