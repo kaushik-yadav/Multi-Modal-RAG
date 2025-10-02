@@ -8,17 +8,30 @@ import streamlit as st
 from PIL import Image
 from pydub import AudioSegment
 
-from indexer import add_items, build_index_from_items, load_meta
+from indexer import add_items
 from rag_system.audio_processor import create_audio_chunks
 from rag_system.image_processor import get_image_caption
 from rag_system.text_processor import extract_text_chunks
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_DIR = Path("thumbnails")
-THUMBNAIL_DIR.mkdir(exist_ok=True)
-FIGURES_DIR = Path("figures")
-FIGURES_DIR.mkdir(exist_ok=True)
+def get_session_thumbnail_dir():
+    """Get session-specific thumbnail directory"""
+    session_id = os.environ.get("CURRENT_SESSION_ID", "default")
+    thumbnail_dir = Path("user_data") / session_id / "thumbnails"
+    thumbnail_dir.mkdir(parents=True, exist_ok=True)
+    return thumbnail_dir
+
+def get_session_figures_dir():
+    """Get session-specific figures directory"""
+    session_id = os.environ.get("CURRENT_SESSION_ID", "default")
+    figures_dir = Path("user_data") / session_id / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    return figures_dir
+
+# Replace the global directory declarations with:
+THUMBNAIL_DIR = get_session_thumbnail_dir()
+FIGURES_DIR = get_session_figures_dir()
 
 def _create_thumbnail(image_path: str, max_size: tuple = (300, 300)) -> str:
     """Create thumbnail for image"""
