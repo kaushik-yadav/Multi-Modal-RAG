@@ -1192,10 +1192,10 @@ st.markdown(
     """
     <div style='text-align: center; color: var(--text-muted); font-size: 0.95rem; margin-top: 3rem; padding: 2.5rem 0;'>
         <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 0.8rem; font-weight: 600;">
-            <strong>🔮 SmartSearch AI</strong> • Unified Interface • Private Sessions
+            <strong>🔮 SmartSearch AI</strong> • Unified Interface for Multi Modal Retrieval
         </p>
         <p style="font-size: 0.9rem; opacity: 0.85; color: var(--text-muted);">
-            Your data is isolated to this session only • Auto-cleanup after 24h inactivity • © 2024
+             Presented by Team JoJo • © 2025
         </p>
     </div>
     """,
