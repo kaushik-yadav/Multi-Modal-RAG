@@ -897,7 +897,7 @@ with st.expander("📖 **How to Use SmartSearch AI** - Click to expand and learn
             <div class="feature-title">3. Ask Questions</div>
             <div class="feature-description">
                 Query your knowledge base naturally and get 
-                intelligent answers with source citations.
+                intelligent answers with source citations and original documents.
             </div>
         </div>
         """, unsafe_allow_html=True)
