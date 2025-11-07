@@ -21,6 +21,40 @@ The system automatically extracts embeddings, builds a local vector index, and a
 
 ---
 
+## System Architecture
+![System Architecture](assets/architecture.png)
+### Architecture Overview
+
+The architecture illustrates how the Multi-Modal RAG System processes and answers user queries across **text, image, and audio modalities**.
+
+1. **User Uploads**
+   - Users can upload **PDFs**, **images**, or **audio files**.
+   - Each file type follows its respective preprocessing pipeline.
+
+2. **Processing Pipelines**
+   - **Text Processor (PyMuPDF4LLM):** Extracts clean text, sections, and tables from PDFs or text-based files.
+   - **Image Processor (Qwen-VL or Groq):** Generates short descriptive captions for images or charts.
+   - **Audio Processor (Faster-Whisper):** Transcribes speech into text while preserving timestamps.
+
+3. **Shared Vector Store (FAISS)**
+   - All embeddings (from text, image captions, and audio transcripts) are stored in a **shared FAISS index**.
+   - This enables **cross-modal semantic retrieval**, meaning the system can relate an image to its corresponding audio or document segment.
+
+4. **Retrieval Layer**
+   - When a user asks a question, the system retrieves **Top-K semantically similar chunks** across all modalities using **MMR reranking** to ensure diversity.
+
+5. **Answer Generation**
+   - The retrieved chunks are passed to the **LLM (Groq/OpenRouter)** which generates a contextual response.
+   - The answer includes **citations**, referencing the source file and segment (for example, timestamps for audio).
+
+6. **Cross-Citation Feature**
+   - The system can compare or relate multiple documents, such as *“What does the image describe based on the audio narration?”*.
+   - Works best when the **Top-K retrieval value** is increased for better multi-document context.
+
+7. **User Interface**
+   - Finally, results are shown in the Streamlit app with highlighted **citations**, file references, and relevant audio timestamps.
+
+
 ## Project Structure
 
 ```
