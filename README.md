@@ -33,8 +33,8 @@ The architecture illustrates how the Multi-Modal RAG System processes and answer
 
 2. **Processing Pipelines**
    - **Text Processor (PyMuPDF4LLM):** Extracts clean text, sections, and tables from PDFs or text-based files.
-   - **Image Processor (Qwen-VL or Groq):** Generates short descriptive captions for images or charts.
-   - **Audio Processor (Faster-Whisper):** Transcribes speech into text while preserving timestamps.
+   - **Image Processor (Groq):** Generates short descriptive captions for images or charts.
+   - **Audio Processor (AssemblyAI):** Transcribes speech into text while preserving timestamps.
 
 3. **Shared Vector Store (FAISS)**
    - All embeddings (from text, image captions, and audio transcripts) are stored in a **shared FAISS index**.
