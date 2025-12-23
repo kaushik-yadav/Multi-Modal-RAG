@@ -9,7 +9,7 @@ The system automatically extracts embeddings, builds a local vector index, and a
 
 * **Multi-modal ingestion** (text, images, audio)
 * **FAISS-based semantic vector search**
-* **Cross Encoder** support for better relevance scoring
+* **Cross Encoder** support for better relevance scoring (uses cross encoder after hybrid retrieval + MMR reranking)
 * **MMR reranking** for diverse retrieval
 * **LLM-based Q&A engine** (OpenRouter, Groq, etc.)
 * **Streamlit UI** for quick testing
@@ -82,7 +82,7 @@ The architecture illustrates how the Multi-Modal RAG System processes and answer
 │   └── app_utils.py              # Generic utility functions
 │
 └── user_data/
-    └── user_id/                  # FAISS indexes and user embeddings
+    └── user_id/                  # FAISS indexes and user embeddings (user level data)
 ```
 
 ---
